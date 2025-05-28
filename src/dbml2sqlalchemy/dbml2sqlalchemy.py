@@ -1,29 +1,30 @@
 # Original code from https://github.com/nevilleomangi/dbml-to-sqlalchemy
 """
-Parses a DBML file to output SQLAlchemy models
-
-TODO:
-- modify architecture
-- table refs
-- enums
-- indexes: functional indexes, index constraints
-- constraints: composite fk
-- default: functional value
-- references: 1-1, inline references
-- cascade
-
-N.B: 
-- use snake_case for table names
-- removed nullable = True from assoc tables
-- skips default: NULL
-- skips autoincrement — lets SQLAlchemy handle...
+Parses a DBML file to output SQLAlchemy models\n
 """
+
+# TODO:
+# - modify architecture
+# - table refs
+# - enums
+# - indexes: functional indexes, index constraints
+# - constraints: composite fk
+# - default: functional value
+# - references: 1-1, inline references
+# - cascade
+
+# N.B:
+# - use snake_case for table names
+# - removed nullable = True from assoc tables
+# - skips default: NULL
+# - skips autoincrement — lets SQLAlchemy handle...
+
 import os
 import re
 from pathlib import Path
 from textwrap import dedent, indent
 from dataclasses import dataclass
-from argparse import ArgumentParser
+from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from pydbml import PyDBML
 
 def snake_to_pascal(string):
@@ -121,6 +122,10 @@ def match_type(type_str):
     match type_str:
         case "int" | "integer":
             return "Integer"
+        case "bigint":
+            return "BigInteger"
+        case "bigserial":
+            return "BigSerial"
         case "varchar" | "text":
             return "String"
         case "date" | "time" as value:
@@ -187,6 +192,10 @@ def parse_col_settings(column):
     autoincrement = False
     primary_key = False
 
+    # BigSerial corresponds to BigInteger with autoincrement
+    if parse_type(column.type) == "BigSerial":
+        autoincrement = True
+
     for prop, value in vars(column).items():
         match setting_name := col_settings_name(prop):
             case "autoincrement":
@@ -230,7 +239,11 @@ def parse_col_settings(column):
 def parse_column_rhs(column):
     settings = parse_col_settings(column)
     foreign_key = parse_refs(column)
-    return f"""Column({ parse_type(column.type) }{', ' + foreign_key if foreign_key else '' }{ ', ' + settings if settings else '' })"""
+    col_type = parse_type(column.type)
+    if col_type == "BigSerial":
+        col_type = "BigInteger"
+
+    return f"""Column({ col_type }{', ' + foreign_key if foreign_key else '' }{ ', ' + settings if settings else '' })"""
 
 
 def parse_column(column):
@@ -415,7 +428,8 @@ OUTPUT = "out/models.txt"
 
 
 def main():
-    parser = ArgumentParser(description=__doc__)
+    # parser = ArgumentParser(description=__doc__)
+    parser = ArgumentParser(description=__doc__, formatter_class=RawDescriptionHelpFormatter)
 
     parser.add_argument(
         "-i",
