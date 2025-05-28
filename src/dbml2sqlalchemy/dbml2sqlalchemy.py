@@ -122,6 +122,10 @@ def match_type(type_str):
     match type_str:
         case "int" | "integer":
             return "Integer"
+        case "bigint":
+            return "BigInteger"
+        case "bigserial":
+            return "BigSerial"
         case "varchar" | "text":
             return "String"
         case "date" | "time" as value:
@@ -188,6 +192,10 @@ def parse_col_settings(column):
     autoincrement = False
     primary_key = False
 
+    # BigSerial corresponds to BigInteger with autoincrement
+    if parse_type(column.type) == "BigSerial":
+        autoincrement = True
+
     for prop, value in vars(column).items():
         match setting_name := col_settings_name(prop):
             case "autoincrement":
@@ -231,7 +239,11 @@ def parse_col_settings(column):
 def parse_column_rhs(column):
     settings = parse_col_settings(column)
     foreign_key = parse_refs(column)
-    return f"""Column({ parse_type(column.type) }{', ' + foreign_key if foreign_key else '' }{ ', ' + settings if settings else '' })"""
+    col_type = parse_type(column.type)
+    if col_type == "BigSerial":
+        col_type = "BigInteger"
+
+    return f"""Column({ col_type }{', ' + foreign_key if foreign_key else '' }{ ', ' + settings if settings else '' })"""
 
 
 def parse_column(column):
